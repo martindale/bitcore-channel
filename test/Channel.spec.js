@@ -1,17 +1,16 @@
-var channel = require('../');
+var _ = require('lodash');
+var bitcore = require('bitcore');
+var assert = require('better-assert');
 var buffer = require('buffer');
 var Buffer = buffer.Buffer;
-var Provider = channel.Provider;
+
+var channel = require('../');
 var Consumer = channel.Consumer;
+var Provider = channel.Provider;
+var util = require('../lib/util');
+
 
 describe('Payment Channel', function() {
-
-  function createAddress(key) {
-    var hash = bitcore.util.sha256ripe160(key);
-    var version = bitcore.networks['livenet'].addressVersion;
-    var addr = new bitcore.Address(version, hash);
-    return addr.data;
-  }
 
   var ADDRESS_CONSUMER = '1HuDSwqZ5h2jWkjMmhnLDXTWHYENPpL6BL';
   var ADDRESS_PROVIDER = '1B41MtYwYyjZyLB97g9mdb7nWgUANdu5Rv';
@@ -28,25 +27,25 @@ describe('Payment Channel', function() {
   CONSUMER_FUNDING_KEY.private = new Buffer(_CONSUMER_FUNDING_PRIVKEY, 'hex');
   CONSUMER_FUNDING_KEY.regenerateSync();
 
-  var FUNDING_ADDRESS = createAddress(CONSUMER_FUNDING_KEY.public);
-
-  var UTXO = {
-    valueSats: 100000000,
-    n: 1,
-    scriptPubKey: {
-      asm: "OP_DUP OP_HASH160 " + bitcore.util.ripe160(key) + " OP_EQUALVERIFY OP_CHECKSIG",
-      reqSigs: 1,
-      type: "pubkeyhash",
-      addresses: [FUNDING_ADDRESS]
-    }
-  };
-
   var PROVIDER_KEY = new bitcore.Key();
   PROVIDER_KEY.private = new Buffer(_PROVIDER_PRIVKEY, 'hex');
   PROVIDER_KEY.regenerateSync();
+  var PROVIDER_PUBKEY = PROVIDER_KEY.public.toString('hex');
 
-  var isCompressedPubkey = function isCompressedPubkey(str) {
-    return _.isString(str) && isHexa(str) && _.size(str) === 33;
+  var FUNDING_ADDRESS = util.createAddress(CONSUMER_FUNDING_KEY.public, 'testnet');
+
+  var SCRIPT = "OP_DUP OP_HASH160 "
+    + bitcore.util.sha256ripe160(CONSUMER_FUNDING_KEY.public).toString('hex')
+    + " OP_EQUALVERIFY OP_CHECKSIG"
+  ;
+  var UTXO = {
+    amount: 0.1,
+    address: FUNDING_ADDRESS,
+    confirmations: 0,
+    vout: 0,
+    scriptPubKey: "76a914b033aa4aa16a6132466a68a2b275f628101572d488ac",
+    txid: "1a2416986b55d3fcb18c03174adf0a872485bbc38d5c38a3bc05adc90c4839d1",
+    ts: 1414984429
   };
 
   describe('funding process', function() {
@@ -61,14 +60,14 @@ describe('Payment Channel', function() {
   describe('refund/change address', function() {
 
     it('gives you a private key and address for refund/change', function() {
-      var consumer = new Consumer();
+      var consumer = new Consumer({network: 'testnet'});
       assert(_.isString(consumer.getRefundAddress()));
       assert(new bitcore.Address(consumer.getRefundAddress()).isValid());
     });
 
     it('allows you to set up an address you\'d like your refund/change funds', function() {
       var address = ADDRESS_CONSUMER;
-      var consumer = new Consumer({refundAddress: address});
+      var consumer = new Consumer({refundAddress: address, network: 'testnet'});
       assert(address === consumer.getRefundAddress());
     });
 
@@ -77,8 +76,8 @@ describe('Payment Channel', function() {
   describe('funding the channel', function() {
 
     it('receives utxos that it can spend', function() {
-      var consumer = new Consumer();
-      consumer.useUtxo({});
+      var consumer = new Consumer({network: 'testnet'});
+      consumer.addUtxo(UTXO);
       assert(_.size(consumer.inputs) > 0);
       // TODO: Better validation
     });
@@ -91,49 +90,73 @@ describe('Payment Channel', function() {
   describe('creating the commitment transaction', function() {
 
     it('provider returns a valid public key', function() {
-      var provider = new Provider({paymentAddress: ADDRESS_PROVIDER});
-      assert(isCompressedPubkey(provider.getPublicKey()));
+      var provider = new Provider({paymentAddress: ADDRESS_PROVIDER, network: 'testnet'});
+      assert(util.isCompressedPubkey(provider.getPublicKey()));
     });
 
     it('consumer creates a valid commitment transaction', function() {
       var consumer = new Consumer({
+        network: 'testnet',
         commitmentKey: CONSUMER_KEY,
-        fundingKey: CONSUMER_FUNDING_KEY
+        fundingKey: CONSUMER_FUNDING_KEY,
+        serverPublicKey: PROVIDER_KEY.public.toString('hex')
       });
-      consumer.useUtxo(UTXO);
+      consumer.addUtxo(UTXO);
       var tx = consumer.createCommitmentTx();
       assert(_.isString(tx));
+      assert(util.isHexa(tx));
     });
   });
+
+  function getConsumerWithRefundTx() {
+    var consumer = new Consumer({
+      network: 'testnet',
+      commitmentKey: CONSUMER_KEY,
+      fundingKey: CONSUMER_FUNDING_KEY,
+      serverPublicKey: PROVIDER_PUBKEY
+    });
+    consumer.addUtxo(UTXO);
+    consumer.createCommitmentTx();
+    consumer.getRefundTxForSigning();
+    return consumer;
+  }
 
   describe('creating the refund transaction', function() {
 
     it('creates a valid refund transaction', function() {
-      var consumer = new Consumer({
-        commitmentKey: CONSUMER_KEY,
-        fundingKey: CONSUMER_FUNDING_KEY
-      });
-      consumer.useUtxo(UTXO);
-
+      var consumer = getConsumerWithRefundTx();
+      // TODO: Assertions on the generated refundtx
     });
-  });
 
-  describe('getting the refund transaction signed', function() {
-  });
+    it('provider returns a signed refund transaction', function() {
+      var consumer = getConsumerWithRefundTx();
+      var provider = new Provider({
+        paymentAddress: ADDRESS_PROVIDER,
+        key: PROVIDER_KEY,
+        network: 'testnet'
+      });
+      var refundTx = consumer.getRefundTxForSigning();
+      var signedTx = provider.signRefundTx(refundTx);
+      // TODO: Validate signedTx, maybe against bitcoind
+      console.log(consumer.createCommitmentTx());
+      console.log(signedTx);
+    });
 
-  describe('emitting the commitment transaction', function() {
   });
 
   describe('validating the commitment transaction', function() {
+    // TODO
   });
 
   describe('sending a new payment', function() {
-  });
 
-  describe('validating a payment', function() {
-  });
+    it('consumer generates a payment', function() {
+      // TODO
+    });
 
-  describe('finishing a channel', function() {
+    it('provider validates a payment', function() {
+      // TODO
+    });
   });
 
 });
