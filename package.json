@@ -1,17 +1,40 @@
 {
-  "name": "bitcore-stream",
-  "version": "0.0.1",
-  "description": "A library for payment channels",
+  "name": "bitcore-channel",
+  "version": "0.1.0",
+  "description": "Add payment channels support to bitcore",
   "scripts": {
-    "test": "grunt test"
+    "lint": "gulp lint",
+    "test": "gulp test",
+    "coverage": "gulp coverage"
   },
   "author": "Esteban Ordano <eordano@gmail.com>",
+  "keywords": [
+    "bitcoin",
+    "bitcore",
+    "btc",
+    "satoshi",
+    "payment channels",
+    "channel",
+    "smart contract"
+  ],
   "license": "MIT",
-  "repository": "https://github.com/eordano/bitcore-stream",
+  "repository": "https://github.com/eordano/bitcore-channel",
   "dependencies": {
-    "better-assert": "^1.0.1",
-    "bitcore": "^0.1.38",
-    "inherits": "^2.0.1",
-    "lodash": "^2.4.1"
+    "bitcore": "git://github.com/bitpay/bitcore.git",
+    "browserify": "^8.1.0",
+    "inherits": "=2.0.1",
+    "lodash": "=2.4.1"
+  },
+  "devDependencies": {
+    "bitcore-build": "^0.4.1",
+    "brfs": "^1.2.0",
+    "browserify": "^8.1.1",
+    "gulp": "^3.8.10",
+    "istanbul": "^0.3.5",
+    "mocha": "^2.0.1",
+    "nodejs-externs": "^0.10.0",
+    "request": "^2.48.0",
+    "run-sequence": "^1.0.2",
+    "vinyl-transform": "^1.0.0"
   }
 }

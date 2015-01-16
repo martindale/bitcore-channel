@@ -13,6 +13,15 @@ lib-cov
 # Coverage directory used by tools like istanbul
 coverage
 
+# Docfiles generated
+docs
+
+# Distribution files generated
+dist
+
+# For downloading closure-compiler
+bower_components
+
 # Grunt intermediate storage (http://gruntjs.com/creating-plugins#storing-task-files)
 .grunt
 
@@ -28,3 +37,8 @@ node_modules
 .lock-wscript
 
 *.sw[a-z]
+
+# browser bundles
+bitcore-channel.js
+bitcore-channel.min.js
+tests.js
